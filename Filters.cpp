@@ -130,7 +130,7 @@ int fib(int n){
   return fib(n - 1) + fib(n - 2);
 }
 
-void histPull(const cv::Mat& sourse, int* hist, unsigned char& count) {
+void histPull(const cv::Mat& sourse, int* hist, int& count) {
   for (int i = 0; i < 256; ++i)
     hist[i] = 0;
   for (int i = 0; i < sourse.rows; ++i)
@@ -140,7 +140,7 @@ void histPull(const cv::Mat& sourse, int* hist, unsigned char& count) {
     if (hist[i] != 0) count++;
 }
 
-void strconcat(char* str, char* paterncode, char add) {
+int strconcat(char* str, char* paterncode, char add) {
   int i = 0;
   while (*(paterncode + i) != '\0'){
     *(str + i) = *(paterncode + i);
@@ -148,6 +148,7 @@ void strconcat(char* str, char* paterncode, char add) {
   }
   str[i] = add;
   str[i + 1] = '\0';
+  return i + 1;
 }
 
 void probabilitisOfIntensity(int* hist, double* res, int countOfPixels) {
@@ -156,45 +157,38 @@ void probabilitisOfIntensity(int* hist, double* res, int countOfPixels) {
 }
 
 void HuffmanCompression(const cv::Mat& input, cv::Mat output) {
-  // ������� ����������� � ����� � ���������� �����������
 
   input.copyTo(output);
   Monochrome(input, output);
   int hist[256];
-  unsigned char nodes = 0;
+  int nodes = 0;
   histPull(output, hist, nodes);
-
-  // ����������� ������������ ����� ���������� �������
 
   double probilitis[256];
   probabilitisOfIntensity(hist, probilitis,
                           output.rows * output.cols);
-  unsigned char maxLen = 0;
+  int maxLen = 0;
   double tmp = probilitis[0];
   for (int i = 1; i < 256; ++i)
     if (probilitis[i] < tmp && probilitis[i] > 0) tmp = probilitis[i];
   while (1 / tmp > fib(maxLen)) ++maxLen;
   maxLen -= 3;
 
-  // ��������� ��� �������� �������
-
   struct PixelInfo {
-    unsigned char intens;
+    int intens;
     double prob;
     PixelInfo *left, *right;
     char* code;
     void setSize(unsigned char len) {code = new char[len];}
   };
 
-  // ��������� ��� �������� ������ ��������
 
   struct HuffCode {
-    unsigned char intens;
+    int intens;
     int arrloc;
     double prob;
   };
 
-  // �������� �������� �������� � �������������
   int totalCount = 2 * nodes - 1;
   PixelInfo* pixelInfo = new PixelInfo[totalCount];
   for (int i = 0; i < totalCount; ++i) pixelInfo[i].setSize(maxLen);
@@ -260,26 +254,34 @@ void HuffmanCompression(const cv::Mat& input, cv::Mat output) {
     ++nextnode;
   }
 
+  int countOfBits[256];
   char left = '0';
   char right = '1';
   int index;
   for (int i = totalCount - 1; i >= nodes; --i) {
     if (pixelInfo[i].left != NULL)
-      strconcat(pixelInfo[i].left->code, pixelInfo[i].code, left);
+      countOfBits[i - 255] = strconcat(pixelInfo[i].left->code, pixelInfo[i].code, left);
     if (pixelInfo[i].right != NULL)
-      strconcat(pixelInfo[i].right->code, pixelInfo[i].code, right);
+      countOfBits[i - 255] = strconcat(pixelInfo[i].right->code, pixelInfo[i].code, right);
   }
 
   for (int i = 0; i < nodes; ++i) {
-    std::cout << huffCode[i].intens << " -- " << pixelInfo[i].code;
+    std::cout <<pixelInfo[i].intens << " -- " << pixelInfo[i].code << std::endl;
   }
+
+  std::cout << "Nomber of bits in input image - " << 8 * pixelCount << std::endl;
+  int countBitsInCompressImage = 0;
+  for (int i = 0; i < 256; ++i) countBitsInCompressImage += strlen(pixelInfo[i].code) * hist[i];
+  std::cout << "Nomber of bits in compress image - " << countBitsInCompressImage;
 
   delete[] pixelInfo;
   delete[] huffCode;
 }
-void GrowFilter(cv::Mat& image, int thr) {
+
+void GrowFilter(cv::Mat& image, int thr, int& region) {
   Matrix A(image.rows, std::vector<int>(image.cols));
   int count = 0;
+  int real_count = 0;
   for (int i = 0; i < image.rows; ++i)
     for (int j = 0; j < image.cols; ++j) {
       cv::Vec3b color = image.at<cv::Vec3b>(i, j);
@@ -306,6 +308,7 @@ void GrowFilter(cv::Mat& image, int thr) {
       } else if (abs(I - I_left) < thr && abs(I - I_up) < thr && I_left != I_up) {
         if (abs(I_up - I_left) < thr) {
           count++;
+          real_count -= 2;
           int min = 0;
           Merge(image, A[i - 1][j], A[i][j - 1], I, i, j, A, count);
           image.at<cv::Vec3b>(i, j)[0] = I;
@@ -325,19 +328,21 @@ void GrowFilter(cv::Mat& image, int thr) {
             A[i][j] = A[i][j - 1];
           }
         }
-      } else if (abs(I - I_left) < thr) {
+      } else if (abs(I - I_left) <= thr) {
         image.at<cv::Vec3b>(i, j)[0] = I_left;
         image.at<cv::Vec3b>(i, j)[1] = I_left;
         image.at<cv::Vec3b>(i, j)[2] = I_left;
         A[i][j] = A[i - 1][j];
-      } else if (abs(I - I_up) < thr) {
+      } else if (abs(I - I_up) <= thr) {
         image.at<cv::Vec3b>(i, j)[0] = I_up;
         image.at<cv::Vec3b>(i, j)[1] = I_up;
         image.at<cv::Vec3b>(i, j)[2] = I_up;
         A[i][j] = A[i][j - 1];
       }
-
+      
     }
+  real_count += count;
+  region = real_count;
 }
 
 void Merge(cv::Mat& image, int reg1, int reg2, int nI, int end_x, int end_y, Matrix& A, int count) { 

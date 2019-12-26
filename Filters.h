@@ -42,10 +42,10 @@ void OtsuFilter(const cv::Mat& input, cv::Mat& output);
 // 4-th lab
 int fib(int n);
 void histPull(const cv::Mat& sourse, int* hist, unsigned char& count);
-void strconcat(char* str, char* paterncode, char add);
+int strconcat(char* str, char* paterncode, char add);
 void probabilitisOfIntensity(int* hist, double* res, int countOfPixels);
 void HuffmanCompression(const cv::Mat& input, cv::Mat output);
-void GrowFilter(cv::Mat& image, int thr);
+void GrowFilter(cv::Mat& image, int thr, int& region);
 void Merge(cv::Mat& image, int reg1, int reg2, int nI, int end_x, int end_y,
            Matrix& A, int count);
 int ToGray(const cv::Vec3b& color);
